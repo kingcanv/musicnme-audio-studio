@@ -1,0 +1,2069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>music n me - Transcribe+ Audio Studio</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 字体：全站使用 Apple SF Pro（macOS / iOS 上由系统字体直接解析，无外链、无 FOUT） -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            // 统一 SF Pro 栈：-apple-system 在苹果设备上即 SF Pro，其余为显式名与跨平台兜底
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', '"SF Pro Icons"', '"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+            mono: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"SF Pro Display"', '"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+          },
+          colors: {
+            'app-bg': '#000000',
+            'app-surface': '#111115',
+            'app-card': '#16161c',
+            'app-border': '#22222a',
+            'ios-blue': '#007aff',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      box-sizing: border-box;
+    }
+    :root {
+      /* 全站唯一字体栈：SF Pro。
+         -apple-system / BlinkMacSystemFont 在 macOS、iOS 上就是 SF Pro；
+         "SF Pro Display/Text" 是显式族名（部分浏览器需要它才会命中）；
+         其余为 Windows/Linux 兜底，保证没有 SF Pro 时不会掉到衬线字体。 */
+      --font-sf: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: #050507;
+      color: #f3f4f6;
+      font-family: var(--font-sf);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+
+    /* 数字区（时间码 / 转盘数值 / 标尺 / 气泡）原本用外链 JetBrains Mono，
+       现统一改为 SF Pro，并开启等宽数字 tnum —— 对齐不变、脱离外链字体 */
+    body .font-mono {
+      font-family: var(--font-sf);
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+    }
+
+    /* Apple Chassis Frame */
+    .phone-chassis {
+      box-shadow: 0 0 0 10px #18181c, 0 0 0 12px #26262e, 0 30px 80px rgba(0, 0, 0, 0.95);
+      border-radius: 50px;
+    }
+
+    /* Vertical Wheel Fader styling matching Transcribe+ screenshot */
+    .wheel-slot {
+      background: #141418;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      position: relative;
+      overflow: hidden;
+      cursor: ns-resize;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+    }
+    .wheel-slot:hover {
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    .wheel-slot:active {
+      border-color: rgba(0, 122, 255, 0.5);
+    }
+
+    .wheel-slot::before, .wheel-slot::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 18px;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .wheel-slot::before {
+      top: 0;
+      background: linear-gradient(to bottom, #141418, transparent);
+    }
+    .wheel-slot::after {
+      bottom: 0;
+      background: linear-gradient(to top, #141418, transparent);
+    }
+
+    /* Minimalist White Playhead with dual top & bottom pins */
+    .playhead-white-line {
+      position: absolute;
+      top: 10px;          /* 线段两端留白：不顶到波形区边缘 */
+      bottom: 22px;       /* 底端停在时间标尺上方，不侵到刻度文字 */
+      width: 2px;
+      background: #ffffff;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.85);
+      pointer-events: none;
+      transform: translateX(-50%);
+      z-index: 25;
+    }
+    .playhead-pin {
+      position: absolute;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 9999px;
+      background: #ffffff;
+      transform: translateX(-50%);
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.95);
+    }
+
+    
+
+    /* Soft fluid blur and luminous aura on the Aurora wave matching the screenshot */
+    .aurora-blur-canvas {
+      filter: blur(7px) saturate(140%) brightness(1.08);
+      transform: scale(1.08);
+      transform-origin: center center;
+      will-change: transform, filter;
+    }
+
+    /* Minimalist Black & White iOS Sliders */
+    .mono-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 9999px;
+      background: #2a2a32;
+      outline: none;
+      margin: 8px 0;
+    }
+    .mono-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+      transition: transform 0.1s ease;
+    }
+    .mono-slider::-webkit-slider-thumb:active {
+      transform: scale(1.15);
+    }
+    .mono-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+      border: none;
+    }
+
+    /* ============ 精修：时间标尺 / 播放头 / 拖动气泡 ============ */
+    .wave-ruler-label {
+      position: absolute;
+      bottom: 3px;
+      transform: translateX(-50%);
+      font-family: var(--font-sf);
+      font-size: 9.5px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+      color: rgba(148, 155, 168, 0.70);
+      pointer-events: none;
+      transition: color 0.25s ease;
+    }
+    .wave-ruler-label.is-major {
+      color: rgba(232, 238, 246, 0.92);
+      font-weight: 600;
+    }
+
+    /* 波形区禁止浏览器手势，保证拖拽跟手 */
+    #waveform-interactive-area { touch-action: none; }
+
+    /* 播放头：拖动时线体发光 + 柔和光晕（销钉为子元素，跟随强调） */
+    #playhead-line.is-dragging { box-shadow: 0 0 14px rgba(255, 255, 255, 0.95); }
+    #playhead-line::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 12px;
+      transform: translateX(-50%);
+      background: radial-gradient(closest-side, rgba(255, 255, 255, 0.14), transparent 76%);
+      pointer-events: none;
+    }
+    .playhead-pin {
+      transition: transform 0.18s cubic-bezier(.3, 1.4, .6, 1), box-shadow 0.18s ease;
+    }
+    #playhead-line.is-dragging .playhead-pin {
+      transform: translateX(-50%) scale(1.6);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 1);
+    }
+
+    /* 拖动时的时间气泡 */
+    #drag-bubble {
+      position: absolute;
+      top: 22px;
+      left: 50%;
+      padding: 3px 8px;
+      border-radius: 8px;
+      background: rgba(8, 8, 12, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
+      font-family: var(--font-sf);
+      font-size: 10px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #e5e7eb;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      transform: translate(-50%, -6px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      z-index: 30;
+    }
+    #drag-bubble.show { opacity: 1; transform: translate(-50%, 0); }
+    #drag-bubble.is-loop { border-color: rgba(0, 122, 255, 0.55); color: #9ecbff; }
+
+    /* ============ 精修：转盘鼓面纹理与反馈 ============ */
+    .wheel-slot { touch-action: none; }
+    .wheel-slot > div { position: relative; z-index: 4; }
+    .wheel-slot > .wheel-ticks {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      z-index: 1;
+      pointer-events: none;
+      will-change: transform;
+    }
+    .wheel-ticks i {
+      position: absolute;
+      left: 50%;
+      width: 14px;
+      height: 1px;
+      margin-left: -7px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.10);
+    }
+    .wheel-ticks i.major {
+      width: 26px;
+      margin-left: -13px;
+      background: rgba(255, 255, 255, 0.22);
+    }
+    .wheel-slot.is-active {
+      border-color: rgba(0, 122, 255, 0.5);
+      transform: scale(1.014);
+      box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.22), 0 10px 26px rgba(0, 0, 0, 0.5);
+    }
+    .wheel-pill { transition: color 0.15s ease, border-color 0.15s ease; }
+    .wheel-slot.pulse .wheel-pill { animation: pillFlash 0.34s ease-out; }
+    @keyframes pillFlash {
+      0% { color: #ffffff; border-color: rgba(255, 255, 255, 0.6); }
+      100% { color: #ffffff; border-color: rgba(255, 255, 255, 0.15); }
+    }
+
+    /* ============ 精修：模块间弹性间距 ============
+       机身高度固定（850px），各模块都是 shrink-0，原本余量全堆在底部。
+       这里在模块之间插入 .module-gap 作为可伸缩间隔：flex-grow 决定分配权重，
+       min-height 保证视口变矮时自动收窄而不是把内容挤到被 overflow-hidden 裁掉。 */
+    .module-gap {
+      flex: 1 1 0%;
+      min-height: 5px;
+      flex-grow: 1;
+    }
+    /* 顶部状态栏 / 标题栏 / 胶囊按钮这一簇属于 iOS 原生 chrome，间距收窄一些更还原 */
+    .module-gap.tight { flex-grow: 0.55; }
+
+    /* Hide scrollbars */
+    ::-webkit-scrollbar { display: none; }
+    * { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+
+<body class="flex flex-col items-center justify-center min-h-screen p-0 sm:p-4 md:p-8 bg-[#040406]">
+
+  <!-- Main Device Frame (Transcribe+ Layout) -->
+  <div id="phone-wrapper" class="relative w-full max-w-[395px] h-[850px] max-h-[100vh] sm:max-h-[880px] bg-gradient-to-b from-[#0f0f14] to-[#08080b] phone-chassis flex flex-col overflow-hidden select-none border border-[#1f1f26] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+
+    <!-- iPhone Hardware Status Bar & Dynamic Island matching image 1:1 -->
+    <div class="relative w-full pt-3.5 px-6 flex items-center justify-between z-40 shrink-0">
+      <!-- Time (11:09) -->
+      <span class="text-[14px] font-semibold text-white tracking-tight pl-1 select-none font-sans" id="clock-display">11:09</span>
+
+      <!-- Dynamic Island pill with dual camera / TrueDepth sensors -->
+      <div class="absolute left-1/2 -translate-x-1/2 top-3 w-[86px] h-[26px] bg-black rounded-full flex items-center justify-center space-x-2.5 z-40 shadow-sm pointer-events-none">
+        <!-- Front Camera Lens with sapphire reflection -->
+        <div class="w-2.5 h-2.5 rounded-full bg-[#080d18] border border-white/10 relative flex items-center justify-center overflow-hidden">
+          <div class="w-1.5 h-1.5 rounded-full bg-[#12243d]/80"></div>
+          <div class="absolute top-0.5 right-0.5 w-0.5 h-0.5 rounded-full bg-blue-300/40"></div>
+        </div>
+        <!-- TrueDepth Sensor / Dot Projector -->
+        <div class="w-2.5 h-2.5 rounded-full bg-[#070b14] border border-white/5 flex items-center justify-center">
+          <div class="w-1.5 h-1.5 rounded-full bg-[#0d1527]/90"></div>
+        </div>
+      </div>
+
+      <!-- iOS Status Icons: Status Dot, Wi-Fi, and Battery -->
+      <div class="flex items-center space-x-2 text-[#d1d5db] pr-1">
+        <!-- Cellular Signal Bars -->
+        <svg class="w-[15px] h-[12px] fill-current" viewBox="0 0 1024 1024">
+          <path d="M0 704h208v192H0zM272 512h208v384H272zM544 288h208v608H544zM816 128h208v768H816z"/>
+        </svg>
+
+        <!-- Native iOS Battery Capsule with Terminal Cap -->
+        <div class="flex items-center">
+          <div class="w-[21px] h-[11px] rounded-[4px] border-[1.2px] border-[#cbd0d8] p-[1.5px] flex items-center">
+            <div class="h-full w-[70%] bg-white rounded-[1.5px]"></div>
+          </div>
+          <div class="w-[1.5px] h-[4px] bg-[#cbd0d8] rounded-r-xs -ml-[0.5px]"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="module-gap tight"></div>
+
+    <!-- Navigation Top Bar -->
+    <header class="px-5 pt-3 pb-1 flex items-center justify-between shrink-0 z-30">
+      <!-- Back Chevron button -->
+      <button id="btn-back" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white active:scale-90 transition" title="Back / Tracks">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+
+      <!-- Center Song Title -->
+      <div class="flex items-center space-x-1.5 cursor-pointer group" id="title-dropdown-btn">
+        <h1 class="text-sm font-semibold tracking-wide text-gray-100 group-hover:text-cyan-400 transition" id="current-track-name">music</h1>
+      </div>
+
+      <!-- Right menu icon: Smiley chat -->
+      <button id="btn-open-options" class="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-white active:scale-90 transition border border-white/10" title="Options">
+        <svg class="w-4 h-4" viewBox="0 0 1024 1024" fill="currentColor">
+          <path d="M460.709647 518.144a49.242353 49.242353 0 1 0 98.484706 0 49.242353 49.242353 0 0 0-98.484706 0z
+                   M269.884235 698.729412a106.676706 106.676706 0 1 0 213.353412 0 106.676706 106.676706 0 0 0-213.353412 0z
+                   m268.830118 0a106.676706 106.676706 0 1 0 213.383529 0 106.676706 106.676706 0 1 0-213.383529 0z
+                   M185.825882 444.295529a106.676706 106.676706 0 1 0 213.353412 0 106.676706 106.676706 0 1 0-213.353412 0z
+                   m439.055059 0a106.676706 106.676706 0 1 0 213.353412 0 106.676706 106.676706 0 1 0-213.353412 0z
+                   m-219.557647-160.075294a106.676706 106.676706 0 1 0 213.38353 0 106.676706 106.676706 0 0 0-213.353412 0z
+                   m517.12 638.192941h-137.456941A491.279059 491.279059 0 0 0 1004.513882 512C1004.483765 239.104 784.926118 19.516235 512 19.516235A491.309176 491.309176 0 0 0 19.486118 512c0 272.956235 219.557647 492.483765 492.513882 492.483765h410.443294c22.528 0 40.990118-18.462118 40.990118-41.050353 0-22.528-18.462118-40.990118-40.990118-40.990118z
+                   m-410.413176 0C286.238118 922.443294 101.556706 737.731765 101.556706 512 101.556706 286.238118 286.268235 101.556706 512 101.556706c225.761882 0 410.443294 184.711529 410.443294 410.443294 0 225.701647-184.681412 410.443294-410.443294 410.443294z"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="module-gap tight"></div>
+
+    <!-- Sub-bar: Split stems & Waveform pill controls -->
+    <div class="px-6 py-2 flex items-center justify-between shrink-0 z-30">
+      <!-- Split stems pill with 3-bar fader icon -->
+      <button id="btn-split-stems" class="flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#18181f] text-xs font-medium text-gray-200 hover:text-white shadow-sm border border-white/5 active:scale-95 transition">
+        <svg class="w-3.5 h-3.5 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+          <rect x="3" y="9" width="2.5" height="6" rx="0.5"/>
+          <rect x="7.5" y="5" width="2.5" height="14" rx="0.5"/>
+          <rect x="12" y="3" width="2.5" height="18" rx="0.5"/>
+          <rect x="16.5" y="7" width="2.5" height="10" rx="0.5"/>
+        </svg>
+        <span class="tracking-tight font-medium">Split stems</span>
+      </button>
+
+      <!-- Waveform toggle pill -->
+      <button id="btn-waveform-mode" class="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-[#18181f] text-xs font-medium text-gray-200 hover:text-white shadow-sm border border-white/5 active:scale-95 transition">
+        <svg class="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2 12h2l2-4 2 7 2-10 2 13 2-8 2 5 2 4h2l2-2"/>
+        </svg>
+        <span class="tracking-tight font-medium">Waveform</span>
+      </button>
+    </div>
+
+    <div class="module-gap"></div>
+
+    <!-- Interactive Waveform Area matching screenshot -->
+    <div class="relative w-full h-36 px-0 my-1 flex flex-col justify-center shrink-0 select-none overflow-hidden cursor-pointer bg-[#09090c]" id="waveform-interactive-area" title="拖动播放头 · 顶部蓝条平移循环 · A/B 手柄改区间">
+      <!-- Main Canvas for waveform drawing with audio peaks & loop region -->
+      <canvas id="waveformCanvas" class="w-full h-full block z-10"></canvas>
+
+      <!-- Minimalist White Playhead matching screenshot -->
+      <div id="playhead-line" class="playhead-white-line" style="left: 50%;">
+        <!-- Top circular pin：位于线段顶端 -->
+        <div class="playhead-pin top-0"></div>
+        <!-- Bottom circular pin：位于线段底端 -->
+        <div class="playhead-pin bottom-0"></div>
+      </div>
+
+      <!-- Time ruler markers: 位置与画布刻度严格对齐（窗口 ±3s，标签取 ±1.5/±0.5） -->
+      <div class="absolute inset-x-0 bottom-0 h-5 pointer-events-none z-20" id="timeline-labels">
+        <span class="wave-ruler-label" id="label-t1" style="left: 16.667%">00:02.00</span>
+        <span class="wave-ruler-label" id="label-t2" style="left: 41.667%">00:03.00</span>
+        <span class="wave-ruler-label is-major" id="label-t3" style="left: 58.333%">00:04.00</span>
+        <span class="wave-ruler-label" id="label-t4" style="left: 83.333%">00:05.00</span>
+      </div>
+
+      <!-- 拖动 / 循环编辑时的浮动时间气泡 -->
+      <div id="drag-bubble">00:00.00</div>
+    </div>
+
+    <div class="module-gap"></div>
+
+    <!-- Timecode & Loop Action Row -->
+    <div class="px-7 py-2 flex items-center justify-between shrink-0">
+      <!-- A-B Marker Loop bracket icon | - | -->
+      <button id="btn-ab-loop" class="p-2 text-gray-300 hover:text-white transition active:scale-90" title="Set A-B Loop Range">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 7v10M18 7v10M6 12h12"/>
+        </svg>
+      </button>
+
+      <!-- Large Digital Timecode matching screenshot (00:03.24) -->
+      <div class="flex items-baseline space-x-0.5 tracking-tight font-mono text-3xl sm:text-4xl font-extrabold text-white text-center cursor-pointer" id="digital-time-wrapper">
+        <span id="time-min-sec">00:03</span>
+        <span class="text-gray-300 text-2xl sm:text-3xl font-bold">.</span>
+        <span id="time-millis" class="text-gray-200 text-2xl sm:text-3xl font-bold">24</span>
+      </div>
+
+      <!-- Loop Toggle Button: Black/white rounded square with repeat arrows -->
+      <button id="btn-loop-toggle" class="w-10 h-9 rounded-xl bg-black border border-white/20 hover:bg-gray-900 text-white flex items-center justify-center shadow-lg transition-all active:scale-90" title="Toggle Loop Mode">
+        <svg class="w-5 h-5" viewBox="0 0 1024 1024" fill="currentColor">
+          <path d="M947.272501 612.228749 825.290309 733.259266c-7.582699 7.520277-17.575284 11.282974-27.495214 11.282974-9.925047 0-19.97903-3.762697-27.561729-11.282974l-122.213459-121.030517c-15.193027-15.083533-15.770172-39.570227-0.624217-54.69674 15.145955-15.125489 38.659485-15.172561 53.862745-0.084934l53.514821 55.255465L754.773256 357.13591 413.993872 357.13591c-21.451568 0-38.845727-17.486256-38.845727-38.844703 0-21.357424 17.393135-38.844703 38.845727-38.844703l383.937322 0c21.452591 0 34.530444 16.276708 34.530444 37.634132l0 295.623951 57.83215-55.257511c15.198144-15.069207 41.948391-15.036461 57.098439 0.084934C962.53716 572.662615 962.466552 597.145216 947.272501 612.228749zM609.997941 667.890466 269.218558 667.890466 269.218558 410.253688l53.519937 55.257511c7.582699 7.525394 16.424064 11.282974 26.349111 11.282974 9.962909 0 19.382443-3.791349 26.973328-11.367909 15.145955-15.130605 14.838963-39.613206-0.354064-54.69674L253.623371 289.701055c-15.163351-15.040555-39.757492-15.040555-54.921867 0L76.719312 410.730549c-15.19405 15.083533-15.248286 39.566134-0.103354 54.69674 15.156188 15.125489 41.896202 15.159258 57.08923 0.084934l57.824987-55.257511 0 295.623951c0 21.357424 13.077853 39.702234 34.530444 39.702234l383.937322 0c21.451568 0 38.845727-17.48728 38.845727-38.844703C648.842645 685.377746 631.449509 667.890466 609.997941 667.890466z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="module-gap"></div>
+
+    <!-- Transport Controls Row matching screenshot 1:1 -->
+    <div class="px-7 py-3 flex items-center justify-between shrink-0 text-white">
+      <!-- L · R Stereo Pan Label Button -->
+      <button id="btn-pan-balance" class="text-xs font-semibold text-gray-300 hover:text-white flex items-center space-x-1.5 transition active:scale-95" title="Stereo Pan (Center / Left / Right)">
+        <span class="tracking-widest font-sans" id="pan-label-text">L · R</span>
+      </button>
+
+      <!-- Rewind 1-second/beat circular counter button -->
+      <button id="btn-skip-back" class="w-9 h-9 rounded-full border border-white/15 hover:border-white/35 flex items-center justify-center text-gray-300 hover:text-white active:scale-90 transition" title="Rewind 1s">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+          <path d="M14 19V5l-7 7 7 7z"/>
+        </svg>
+      </button>
+
+      <!-- Main Flat White Solid Triangle Play/Pause Button -->
+      <button id="btn-play-pause" class="w-12 h-12 flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-transform" title="Play / Pause">
+        <!-- Solid White Play Triangle -->
+        <svg id="icon-play" class="w-8 h-8 fill-white translate-x-0.5" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <!-- Pause Bars -->
+        <svg id="icon-pause" class="w-7 h-7 fill-white hidden" viewBox="0 0 24 24">
+          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+        </svg>
+      </button>
+
+      <!-- Forward 1-second/beat circular counter button -->
+      <button id="btn-skip-forward" class="w-9 h-9 rounded-full border border-white/15 hover:border-white/35 flex items-center justify-center text-gray-300 hover:text-white active:scale-90 transition" title="Forward 1s">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+          <path d="M10 5v14l7-7-7-7z"/>
+        </svg>
+      </button>
+
+      <!-- Freeze / Pitch-Lock Snowflake Button -->
+      <button id="btn-freeze" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-white active:scale-90 transition" title="Pitch Lock / Freeze">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07M12 6l-2-2m2 2l2-2M12 18l-2 2m2-2l2 2M6 12l-2-2m2 2l-2 2M18 12l2-2m-2 2l2 2"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="module-gap"></div>
+
+    <!-- EQUALIZER Container Card with Aurora Fluid & Side Handles (Clickable for full EQ Drawer) -->
+    <div class="mx-5 my-1 flex flex-col items-center shrink-0 cursor-pointer group" id="equalizer-card" title="Click to adjust Equalizer bands">
+      <div class="relative w-full h-[70px] rounded-2xl bg-[#0e0e13] border border-white/10 group-hover:border-cyan-500/40 flex items-center justify-center overflow-hidden shadow-inner transition">
+        <!-- Aurora Liquid Spectrum Canvas with soft blur and fluid blend -->
+        <div class="absolute inset-0 overflow-hidden flex items-center justify-center">
+          <canvas id="auroraCanvas" class="w-full h-full block aurora-blur-canvas"></canvas>
+          <div class="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/25 pointer-events-none"></div>
+        </div>
+      </div>
+
+      <!-- Typographic EQUALIZER Label -->
+      <div class="flex items-center space-x-1.5 mt-2">
+        <span class="text-[10px] font-bold tracking-[0.2em] text-gray-400 group-hover:text-cyan-400 uppercase transition">EQUALIZER</span>
+        <span class="text-[10px] text-gray-500 group-hover:text-cyan-400 transition">⌘</span>
+      </div>
+    </div>
+
+    <div class="module-gap"></div>
+
+    <!-- Bottom 3 Tactile Wheels: CENTS, SEMITONES, SPEED matching screenshot layout -->
+    <div class="px-5 pb-6 pt-2 grid grid-cols-3 gap-3.5 shrink-0">
+      
+      <!-- 1. CENTS WHEEL SLIDER -->
+      <div class="flex flex-col items-center">
+        <div id="wheel-cents" class="w-full h-24 rounded-2xl wheel-slot p-2 flex flex-col justify-between items-center select-none shadow-md border border-white/10 group transition" title="Drag or Scroll to tune Cents">
+          <!-- Scale markers -->
+          <div class="flex flex-col items-center space-y-0.5 opacity-60">
+            <span class="text-[9px] font-mono text-gray-400 select-none pointer-events-none" id="cents-upper">+1</span>
+            <div class="w-4 h-[1px] bg-gray-600"></div>
+          </div>
+
+          <!-- Floating embossed center pill -->
+          <div class="w-full py-1.5 rounded-xl bg-gradient-to-b from-[#26262e] to-[#1a1a22] border border-white/15 text-base font-bold font-mono text-white flex items-center justify-center tracking-tight shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_4px_rgba(0,0,0,0.4)] wheel-pill" id="cents-value">
+            +0
+          </div>
+
+          <div class="flex flex-col items-center space-y-0.5 opacity-60">
+            <div class="w-4 h-[1px] bg-gray-600"></div>
+            <span class="text-[9px] font-mono text-gray-400 select-none pointer-events-none" id="cents-lower">-1</span>
+          </div>
+        </div>
+        <span class="mt-2 text-[10px] font-bold tracking-wider text-gray-400 uppercase">CENTS</span>
+      </div>
+
+      <!-- 2. SEMITONES WHEEL SLIDER -->
+      <div class="flex flex-col items-center">
+        <div id="wheel-semitones" class="w-full h-24 rounded-2xl wheel-slot p-2 flex flex-col justify-between items-center select-none shadow-md border border-white/10 group transition" title="Drag or Scroll to transpose Semitones">
+          <!-- Scale markers -->
+          <div class="flex flex-col items-center space-y-0.5 opacity-60">
+            <span class="text-[9px] font-mono text-gray-400 select-none pointer-events-none" id="semi-upper">+1</span>
+            <div class="w-4 h-[1px] bg-gray-600"></div>
+          </div>
+
+          <!-- Floating embossed center pill -->
+          <div class="w-full py-1.5 rounded-xl bg-gradient-to-b from-[#26262e] to-[#1a1a22] border border-white/15 text-base font-bold font-mono text-white flex items-center justify-center tracking-tight shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_4px_rgba(0,0,0,0.4)] wheel-pill" id="semitones-value">
+            +0
+          </div>
+
+          <div class="flex flex-col items-center space-y-0.5 opacity-60">
+            <div class="w-4 h-[1px] bg-gray-600"></div>
+            <span class="text-[9px] font-mono text-gray-400 select-none pointer-events-none" id="semi-lower">-1</span>
+          </div>
+        </div>
+        <span class="mt-2 text-[10px] font-bold tracking-wider text-gray-400 uppercase">SEMITONES</span>
+      </div>
+
+      <!-- 3. SPEED WHEEL SLIDER (Defaults to 0.20x as shown in screenshot) -->
+      <div class="flex flex-col items-center">
+        <div id="wheel-speed" class="w-full h-24 rounded-2xl wheel-slot p-2 flex flex-col justify-between items-center select-none shadow-md border border-white/10 group transition" title="Drag or Scroll to change speed">
+          <!-- Scale markers -->
+          <div class="flex flex-col items-center space-y-0.5 opacity-60">
+            <span class="text-[9px] font-mono text-gray-400 select-none pointer-events-none" id="speed-upper">0.3x</span>
+            <div class="w-4 h-[1px] bg-gray-600"></div>
+          </div>
+
+          <!-- Floating embossed center pill -->
+          <div class="w-full py-1.5 rounded-xl bg-gradient-to-b from-[#26262e] to-[#1a1a22] border border-white/15 text-base font-bold font-mono text-white flex items-center justify-center tracking-tight shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_2px_4px_rgba(0,0,0,0.4)] wheel-pill" id="speed-value">
+            0.20x
+          </div>
+
+          <div class="flex flex-col items-center space-y-0.5 opacity-60">
+            <div class="w-4 h-[1px] bg-gray-600"></div>
+            <span class="text-[9px] font-mono text-gray-400 select-none pointer-events-none" id="speed-lower">0.1x</span>
+          </div>
+        </div>
+        <span class="mt-2 text-[10px] font-bold tracking-wider text-gray-400 uppercase">SPEED</span>
+      </div>
+
+    </div>
+
+    <div class="module-gap"></div>
+
+    <!-- iPhone Bottom Home Bar -->
+    <div class="w-full pb-2 pt-0.5 flex justify-center shrink-0">
+      <div class="w-32 h-1 bg-gray-500/50 rounded-full"></div>
+    </div>
+
+    <!-- SLIDE-UP MODAL: Split Stems Mixer Drawer -->
+    <div id="modal-stems" class="absolute inset-0 bg-black/80 backdrop-blur-xl z-50 flex flex-col justify-end transition-all duration-300 opacity-0 pointer-events-none translate-y-8">
+      <div class="bg-[#121217] rounded-t-3xl border-t border-white/10 p-6 flex flex-col max-h-[85%] overflow-y-auto">
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-4 border-b border-white/10">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center space-x-2">
+              <span>Split Stems</span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">AI Active</span>
+            </h2>
+            <p class="text-xs text-gray-400 mt-0.5">Solo, mute, or balance individual tracks in real-time</p>
+          </div>
+          <button id="btn-close-stems" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-gray-300 hover:text-white">✕</button>
+        </div>
+
+        <!-- Stems Channels List -->
+        <div class="mt-4 space-y-3.5">
+          <!-- Vocals & Melody -->
+          <div class="p-3.5 rounded-xl bg-white/5 border border-white/5 flex flex-col space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center text-sm">🎤</div>
+                <div>
+                  <div class="text-sm font-semibold text-white">Vocals & Leads</div>
+                  <div class="text-[10px] text-gray-400">Mid-high frequency melodic core</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="stem-toggle-vocals" checked class="sr-only peer">
+                <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+              </label>
+            </div>
+            <div class="flex items-center space-x-3 pt-1">
+              <span class="text-[10px] text-gray-400 font-mono w-10">VOL</span>
+              <input type="range" id="stem-vol-vocals" min="0" max="100" value="100" class="w-full accent-cyan-400 h-1 bg-gray-700 rounded-lg cursor-pointer">
+            </div>
+          </div>
+
+          <!-- Drums & Percussion -->
+          <div class="p-3.5 rounded-xl bg-white/5 border border-white/5 flex flex-col space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm">🥁</div>
+                <div>
+                  <div class="text-sm font-semibold text-white">Drums & Percussion</div>
+                  <div class="text-[10px] text-gray-400">Transient punch, kicks & hi-hats</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="stem-toggle-drums" checked class="sr-only peer">
+                <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+              </label>
+            </div>
+            <div class="flex items-center space-x-3 pt-1">
+              <span class="text-[10px] text-gray-400 font-mono w-10">VOL</span>
+              <input type="range" id="stem-vol-drums" min="0" max="100" value="100" class="w-full accent-amber-400 h-1 bg-gray-700 rounded-lg cursor-pointer">
+            </div>
+          </div>
+
+          <!-- Bass & Sub -->
+          <div class="p-3.5 rounded-xl bg-white/5 border border-white/5 flex flex-col space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-sm">🎸</div>
+                <div>
+                  <div class="text-sm font-semibold text-white">Bassline & Sub</div>
+                  <div class="text-[10px] text-gray-400">Low-end foundation (30Hz - 250Hz)</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="stem-toggle-bass" checked class="sr-only peer">
+                <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+              </label>
+            </div>
+            <div class="flex items-center space-x-3 pt-1">
+              <span class="text-[10px] text-gray-400 font-mono w-10">VOL</span>
+              <input type="range" id="stem-vol-bass" min="0" max="100" value="100" class="w-full accent-blue-400 h-1 bg-gray-700 rounded-lg cursor-pointer">
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-done-stems" class="mt-5 w-full py-3 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-xl font-semibold text-white shadow-lg active:scale-98 transition">
+          Apply Stems
+        </button>
+      </div>
+    </div>
+
+    <!-- SLIDE-UP MODAL: Interactive EQUALIZER Studio Drawer -->
+    <div id="modal-eq" class="absolute inset-0 bg-black/80 backdrop-blur-xl z-50 flex flex-col justify-end transition-all duration-300 opacity-0 pointer-events-none translate-y-8">
+      <div class="bg-[#121217] rounded-t-3xl border-t border-white/10 p-6 flex flex-col max-h-[85%] overflow-y-auto">
+        <div class="flex items-center justify-between pb-4 border-b border-white/10">
+          <div>
+            <h2 class="text-base font-bold text-white">Equalizer Studio</h2>
+            <p class="text-xs text-gray-400">Precision 3-Band Parametric Filter</p>
+          </div>
+          <button id="btn-close-eq" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-gray-300 hover:text-white">✕</button>
+        </div>
+
+        <!-- 3-Band Faders (Monochrome Black & White) -->
+        <div class="mt-5 space-y-5">
+          <!-- Low / Bass -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs font-semibold">
+              <span class="text-gray-300">BASS (100Hz)</span>
+              <span class="font-mono text-white font-bold" id="eq-low-readout">+0 dB</span>
+            </div>
+            <input type="range" id="slider-eq-low" min="-18" max="18" step="1" value="0" class="mono-slider cursor-pointer">
+          </div>
+
+          <!-- Mid / Presence -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs font-semibold">
+              <span class="text-gray-300">MID (1.5kHz)</span>
+              <span class="font-mono text-white font-bold" id="eq-mid-readout">+0 dB</span>
+            </div>
+            <input type="range" id="slider-eq-mid" min="-18" max="18" step="1" value="0" class="mono-slider cursor-pointer">
+          </div>
+
+          <!-- High / Treble -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs font-semibold">
+              <span class="text-gray-300">TREBLE (6kHz)</span>
+              <span class="font-mono text-white font-bold" id="eq-high-readout">+0 dB</span>
+            </div>
+            <input type="range" id="slider-eq-high" min="-18" max="18" step="1" value="0" class="mono-slider cursor-pointer">
+          </div>
+        </div>
+
+        <div class="flex space-x-3 mt-6">
+          <button id="btn-reset-eq" class="w-1/3 py-2.5 bg-white/10 hover:bg-white/15 rounded-xl font-medium text-xs text-gray-300 transition">
+            Flat Reset
+          </button>
+          <button id="btn-done-eq" class="w-2/3 py-2.5 bg-white hover:bg-gray-200 text-black font-semibold rounded-xl text-xs shadow-lg transition">
+            Close EQ
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRACK SELECTOR & FILE UPLOAD MODAL -->
+    <div id="modal-tracks" class="absolute inset-0 bg-black/80 backdrop-blur-xl z-50 flex flex-col justify-end transition-all duration-300 opacity-0 pointer-events-none translate-y-8">
+      <div class="bg-[#121217] rounded-t-3xl border-t border-white/10 p-6 flex flex-col max-h-[85%] overflow-y-auto">
+        <div class="flex items-center justify-between pb-4 border-b border-white/10">
+          <h2 class="text-base font-bold text-white">Track Library & Import</h2>
+          <button id="btn-close-tracks" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-gray-300 hover:text-white">✕</button>
+        </div>
+
+        <div class="mt-4 space-y-2.5">
+          <div class="track-choice p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-between cursor-pointer hover:bg-cyan-500/20" data-track="music n me">
+            <div>
+              <div class="text-sm font-bold text-white">music n me (Original Groove)</div>
+              <div class="text-xs text-cyan-300">Tempo: 120 BPM • Key: C Minor</div>
+            </div>
+            <span class="text-cyan-400 text-xs font-bold">Active</span>
+          </div>
+
+          <div class="track-choice p-3.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10" data-track="Synthwave Retro">
+            <div>
+              <div class="text-sm font-semibold text-gray-200">Synthwave Retro Drive</div>
+              <div class="text-xs text-gray-400">Tempo: 110 BPM • Analog Synths</div>
+            </div>
+          </div>
+
+          <div class="track-choice p-3.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10" data-track="Lo-Fi Chill Hop">
+            <div>
+              <div class="text-sm font-semibold text-gray-200">Lo-Fi Chill Hop Rain</div>
+              <div class="text-xs text-gray-400">Tempo: 85 BPM • Warm Vinyl</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Upload button -->
+        <label class="mt-5 w-full py-3 bg-white/10 hover:bg-white/15 rounded-xl border border-dashed border-gray-500 flex items-center justify-center space-x-2 cursor-pointer transition">
+          <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <span class="text-xs font-semibold text-gray-200">Import Custom Audio (.mp3, .wav)</span>
+          <input type="file" id="audio-file-input" accept="audio/*" class="hidden">
+        </label>
+      </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="absolute bottom-8 left-1/2 -translate-x-1/2 px-4 py-2 bg-[#1c1c23]/95 backdrop-blur-md border border-cyan-500/40 rounded-full text-xs font-medium text-cyan-300 shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-50">
+      Notification
+    </div>
+
+  </div>
+
+  <script>
+    /* Global Application State matching Transcribe+ screenshot */
+    const state = {
+      isPlaying: false,
+      currentTime: 3.24,        // Screenshot shows 00:03.24
+      duration: 16.00,          // Default 16-sec multi-track loop
+      isLooping: true,          // Loop active
+      loopStart: 2.00,
+      loopEnd: 6.00,
+      
+      // Screenshot specific parameter defaults:
+      cents: 0,                 // CENTS: +0
+      semitones: 0,             // SEMITONES: +0
+      speed: 0.20,              // SPEED: 0.20x as explicitly shown in screenshot!
+      
+      pan: 0,                   // Stereo Center (L · R)
+      eq: {
+        low: 0,
+        mid: 0,
+        high: 0
+      },
+      stems: {
+        vocals: true,
+        drums: true,
+        bass: true,
+        volVocals: 1.0,
+        volDrums: 1.0,
+        volBass: 1.0
+      },
+      currentTrack: 'music n me',
+      isFrozen: false
+    };
+
+    /* Web Audio Context & Graph Nodes */
+    let audioCtx = null;
+    let masterGain = null;
+    let pannerNode = null;
+    let lowFilter = null;
+    let midFilter = null;
+    let highFilter = null;
+    let vocalGainNode = null;
+    let drumGainNode = null;
+    let bassGainNode = null;
+    let analyser = null;
+    let audioBuffer = null;
+    let sourceNode = null;
+    let startTimeOffset = 3.24;
+    let audioCtxStartTimestamp = 0;
+
+    /* Waveform Data points */
+    let waveformPeaks = [];
+    /* 平滑后的波形振幅（每帧 lerp，消除帧间跳变） */
+    let waveformPeaksSmooth = [];
+
+    /* 时间轴常量：可视窗口 6 秒、底部标尺高度 */
+    const WINDOW_SPAN = 6.0;
+    const RULER_H = 16;
+    // 蓝色循环区间与白色播放头线段共用的上下留白（与 .playhead-white-line 的 top/bottom 保持一致）
+    const BAND_TOP = 10;
+    const BAND_BOTTOM = 22;
+    let viewFrozen = false;        // 拖动 A/B 手柄时冻结视图，保证手柄始终跟手
+    let frozenCenter = 3.24;
+
+    // Toast helper
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'pointer-events-none', '-translate-y-2');
+      }, 1800);
+    }
+
+    // Synthesizes a rich multi-track groove so all controls (stems, EQ, speed, cents) operate right out of the box
+    function generateSynthesizedTrack(type = 'music n me') {
+      const sampleRate = 44100;
+      const duration = 16.0;
+      const length = sampleRate * duration;
+      const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(2, length, sampleRate);
+
+      const bpm = type === 'Lo-Fi Chill Hop' ? 85 : (type === 'Synthwave Retro' ? 110 : 120);
+      const beatSec = 60 / bpm;
+      const totalBeats = Math.floor(duration / beatSec);
+
+      // 1. Bassline Generator (Channel 0 & 1 low frequency)
+      const bassNotes = [130.81, 146.83, 164.81, 174.61, 196.00];
+      for (let b = 0; b < totalBeats; b++) {
+        if (b % 2 === 0 || b % 3 === 0) {
+          const osc = offlineCtx.createOscillator();
+          const gain = offlineCtx.createGain();
+          osc.type = 'sawtooth';
+          const freq = bassNotes[b % bassNotes.length];
+          osc.frequency.setValueAtTime(freq / 2, b * beatSec);
+          
+          gain.gain.setValueAtTime(0.35, b * beatSec);
+          gain.gain.exponentialRampToValueAtTime(0.001, (b + 0.8) * beatSec);
+
+          osc.connect(gain);
+          gain.connect(offlineCtx.destination);
+          osc.start(b * beatSec);
+          osc.stop((b + 0.8) * beatSec);
+        }
+      }
+
+      // 2. Chords & Lead Melodies ("music n me" vibe)
+      const chordFreaks = [
+        [261.63, 311.13, 392.00, 466.16], // Cm7
+        [220.00, 261.63, 329.63, 392.00], // Am7
+        [174.61, 220.00, 261.63, 329.63], // Fmaj7
+        [196.00, 246.94, 293.66, 349.23]  // G7
+      ];
+      for (let bar = 0; bar < 4; bar++) {
+        const chord = chordFreaks[bar % chordFreaks.length];
+        const barTime = bar * (beatSec * 4);
+
+        chord.forEach((noteFreq) => {
+          const osc = offlineCtx.createOscillator();
+          const gain = offlineCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(noteFreq, barTime);
+
+          gain.gain.setValueAtTime(0.001, barTime);
+          gain.gain.linearRampToValueAtTime(0.09, barTime + 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.001, barTime + (beatSec * 3.8));
+
+          osc.connect(gain);
+          gain.connect(offlineCtx.destination);
+          osc.start(barTime);
+          osc.stop(barTime + (beatSec * 3.9));
+        });
+      }
+
+      // 3. Drum Beats (Kick, Snare, Hi-hats)
+      for (let b = 0; b < totalBeats; b++) {
+        const t = b * beatSec;
+        
+        // Kick on beat 0 and 2
+        if (b % 4 === 0 || b % 4 === 2) {
+          const kickOsc = offlineCtx.createOscillator();
+          const kickGain = offlineCtx.createGain();
+          kickOsc.frequency.setValueAtTime(140, t);
+          kickOsc.frequency.exponentialRampToValueAtTime(36, t + 0.09);
+          kickGain.gain.setValueAtTime(0.5, t);
+          kickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+          kickOsc.connect(kickGain);
+          kickGain.connect(offlineCtx.destination);
+          kickOsc.start(t);
+          kickOsc.stop(t + 0.25);
+        }
+
+        // Snare on beat 1 and 3
+        if (b % 4 === 1 || b % 4 === 3) {
+          const noiseBuffer = offlineCtx.createBuffer(1, Math.floor(offlineCtx.sampleRate * 0.15), offlineCtx.sampleRate);
+          const output = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < noiseBuffer.length; i++) {
+            output[i] = Math.random() * 2 - 1;
+          }
+          const whiteNoise = offlineCtx.createBufferSource();
+          whiteNoise.buffer = noiseBuffer;
+          const snareGain = offlineCtx.createGain();
+          snareGain.gain.setValueAtTime(0.3, t);
+          snareGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+          whiteNoise.connect(snareGain);
+          snareGain.connect(offlineCtx.destination);
+          whiteNoise.start(t);
+          whiteNoise.stop(t + 0.16);
+        }
+
+        // Hi-Hats every eighth note
+        const hatTime = t + (beatSec / 2);
+        const hatBuffer = offlineCtx.createBuffer(1, Math.floor(offlineCtx.sampleRate * 0.04), offlineCtx.sampleRate);
+        const hatData = hatBuffer.getChannelData(0);
+        for (let i = 0; i < hatBuffer.length; i++) hatData[i] = Math.random() * 2 - 1;
+        const hatSource = offlineCtx.createBufferSource();
+        hatSource.buffer = hatBuffer;
+        const hatGain = offlineCtx.createGain();
+        hatGain.gain.setValueAtTime(0.12, hatTime);
+        hatGain.gain.exponentialRampToValueAtTime(0.001, hatTime + 0.035);
+        hatSource.connect(hatGain);
+        hatGain.connect(offlineCtx.destination);
+        hatSource.start(hatTime);
+        hatSource.stop(hatTime + 0.04);
+      }
+
+      return offlineCtx.startRendering();
+    }
+
+    function initAudioEngine() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContextClass();
+
+        // Master Gain
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.95;
+
+        // Stereo Panner
+        if (audioCtx.createStereoPanner) {
+          pannerNode = audioCtx.createStereoPanner();
+          pannerNode.pan.value = state.pan;
+        }
+
+        // 3-Band Equalizer Filters
+        lowFilter = audioCtx.createBiquadFilter();
+        lowFilter.type = 'lowshelf';
+        lowFilter.frequency.value = 250;
+        lowFilter.gain.value = state.eq.low;
+
+        midFilter = audioCtx.createBiquadFilter();
+        midFilter.type = 'peaking';
+        midFilter.frequency.value = 1500;
+        midFilter.Q.value = 1.0;
+        midFilter.gain.value = state.eq.mid;
+
+        highFilter = audioCtx.createBiquadFilter();
+        highFilter.type = 'highshelf';
+        highFilter.frequency.value = 6000;
+        highFilter.gain.value = state.eq.high;
+
+        // Stem isolation gain controls
+        vocalGainNode = audioCtx.createGain();
+        drumGainNode = audioCtx.createGain();
+        bassGainNode = audioCtx.createGain();
+
+        // Analyser for rainbow aurora equalizer visualizer
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.85;
+
+        // Audio Chain:
+        // Source -> lowFilter -> midFilter -> highFilter -> pannerNode -> masterGain -> analyser -> destination
+        lowFilter.connect(midFilter);
+        midFilter.connect(highFilter);
+
+        if (pannerNode) {
+          highFilter.connect(pannerNode);
+          pannerNode.connect(masterGain);
+        } else {
+          highFilter.connect(masterGain);
+        }
+
+        masterGain.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      }
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function applyAudioParameters() {
+      if (!sourceNode || !audioCtx) return;
+      
+      // Calculate total detune in cents = (semitones * 100) + cents
+      const totalDetune = (state.semitones * 100) + state.cents;
+      if (sourceNode.detune) {
+        sourceNode.detune.setValueAtTime(totalDetune, audioCtx.currentTime);
+      }
+
+      // Playback speed rate (0.10x to 2.00x, default 0.20x)
+      if (sourceNode.playbackRate) {
+        sourceNode.playbackRate.setValueAtTime(state.speed, audioCtx.currentTime);
+      }
+
+      // Apply loop
+      sourceNode.loop = state.isLooping;
+      sourceNode.loopStart = state.loopStart;
+      sourceNode.loopEnd = state.loopEnd;
+    }
+
+    function startPlayback(offsetSeconds = null) {
+      initAudioEngine();
+      if (!audioBuffer) return;
+
+      if (sourceNode) {
+        try { sourceNode.stop(); } catch(e){}
+        sourceNode.disconnect();
+      }
+
+      sourceNode = audioCtx.createBufferSource();
+      sourceNode.buffer = audioBuffer;
+
+      applyAudioParameters();
+
+      // Connect source to first filter
+      sourceNode.connect(lowFilter);
+
+      const offset = (offsetSeconds !== null) ? offsetSeconds : state.currentTime;
+      startTimeOffset = offset;
+      audioCtxStartTimestamp = audioCtx.currentTime;
+
+      sourceNode.start(0, offset);
+      state.isPlaying = true;
+      updatePlayPauseButtonUI();
+
+      sourceNode.onended = () => {
+        if (!state.isLooping && state.currentTime >= state.duration - 0.1) {
+          state.isPlaying = false;
+          state.currentTime = 0;
+          updatePlayPauseButtonUI();
+        }
+      };
+    }
+
+    function stopPlayback(silent) {
+      if (sourceNode) {
+        try { sourceNode.stop(); } catch(e){}
+        sourceNode.disconnect();
+        sourceNode = null;
+      }
+      state.isPlaying = false;
+      if (!silent) updatePlayPauseButtonUI();
+    }
+
+    function togglePlay() {
+      if (state.isPlaying) {
+        stopPlayback();
+      } else {
+        startPlayback(state.currentTime);
+      }
+    }
+
+    function updatePlayPauseButtonUI() {
+      const iconPlay = document.getElementById('icon-play');
+      const iconPause = document.getElementById('icon-pause');
+
+      if (state.isPlaying) {
+        iconPlay.classList.add('hidden');
+        iconPause.classList.remove('hidden');
+      } else {
+        iconPlay.classList.remove('hidden');
+        iconPause.classList.add('hidden');
+      }
+    }
+
+    function computeWaveformPeaks(buffer, samples = 220) {
+      const channelData = buffer.getChannelData(0);
+      const step = Math.floor(channelData.length / samples);
+      const peaks = [];
+      for (let i = 0; i < samples; i++) {
+        let min = 1.0;
+        let max = -1.0;
+        for (let j = 0; j < step; j++) {
+          const datum = channelData[(i * step) + j];
+          if (datum < min) min = datum;
+          if (datum > max) max = datum;
+        }
+        peaks.push(Math.max(Math.abs(min), Math.abs(max)));
+      }
+      return peaks;
+    }
+
+    // Load initial demo track
+    generateSynthesizedTrack('music n me').then((buf) => {
+      audioBuffer = buf;
+      state.duration = buf.duration;
+      waveformPeaks = computeWaveformPeaks(buf, 240);
+      waveformPeaksSmooth = waveformPeaks.slice();
+      drawWaveform();
+    });
+
+    const waveformCanvas = document.getElementById('waveformCanvas');
+    const waveCtx = waveformCanvas.getContext('2d');
+    const waveformArea = document.getElementById('waveform-interactive-area');
+    const playheadEl = document.getElementById('playhead-line');
+    const dragBubbleEl = document.getElementById('drag-bubble');
+
+    // 统一画布适配：每次都用 setTransform 重置，避免 DPR 缩放逐次累加导致画面越画越大
+    function fitCanvas(canvas, ctx) {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = Math.max(1, Math.round(rect.width * dpr));
+      const h = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return rect;
+    }
+
+    function resizeWaveformCanvas() {
+      fitCanvas(waveformCanvas, waveCtx);
+      drawWaveform();
+    }
+    window.addEventListener('resize', resizeWaveformCanvas);
+
+    /* ---------------- 时间轴几何工具 ---------------- */
+    function getViewCenter() {
+      return viewFrozen ? frozenCenter : state.currentTime;
+    }
+    function getViewStart() {
+      return getViewCenter() - WINDOW_SPAN / 2;
+    }
+    function timeToRatio(t) {
+      return (t - getViewStart()) / WINDOW_SPAN;
+    }
+    function formatClock(sec) {
+      const total = Math.max(0, sec);
+      const m = Math.floor(total / 60);
+      const s = Math.floor(total % 60);
+      const cs = Math.floor((total % 1) * 100);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+    }
+    function setRulerLabel(id, time) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      let t = time % state.duration;
+      if (t < 0) t += state.duration;
+      el.textContent = formatClock(t);
+    }
+
+    /* A/B 手柄：当前不显示竖线与三角旗标 */
+    function drawLoopHandle(ctx, x, height, isStart) {
+      // 空实现，保留函数便于后续恢复拖动把手
+    }
+
+    function drawWaveform() {
+      const rect = waveformArea.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      if (!width || !height) return;
+
+      const ctx = waveCtx;
+      ctx.clearRect(0, 0, width, height);
+
+      const startTime = getViewStart();
+      const centerY = (height - RULER_H) / 2 + 2;
+      const maxHalf = (height - RULER_H - 22) / 2;
+
+      // 1) 中心参考线
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fillRect(0, Math.round(centerY), width, 1);
+
+      // 2) 循环区间：蓝色渐变底色
+      const loopX1 = timeToRatio(state.loopStart) * width;
+      const loopX2 = timeToRatio(state.loopEnd) * width;
+      if (state.isLooping && loopX2 > 0 && loopX1 < width) {
+        const rx1 = Math.max(0, loopX1);
+        const rx2 = Math.min(width, loopX2);
+        // 循环区间：蓝→青→绿 渐变填充（无描边）
+        const bgGrad = ctx.createLinearGradient(rx1, 0, rx2, 0);
+        bgGrad.addColorStop(0,   'rgba(0,   122, 255, 0.16)');
+        bgGrad.addColorStop(0.5, 'rgba(64,  220, 220, 0.14)');
+        bgGrad.addColorStop(1,   'rgba(80,  230, 160, 0.16)');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(rx1, BAND_TOP, rx2 - rx1, height - BAND_TOP - BAND_BOTTOM);
+
+        // 2px 蓝→青→绿渐变描边（不透明色）
+        const edgeGrad = ctx.createLinearGradient(rx1, 0, rx2, 0);
+        edgeGrad.addColorStop(0,   'rgba(0,   122, 255, 1)');
+        edgeGrad.addColorStop(0.5, 'rgba(64,  220, 220, 1)');
+        edgeGrad.addColorStop(1,   'rgba(80,  230, 160, 1)');
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = edgeGrad;
+        ctx.strokeRect(rx1 + 1, BAND_TOP + 1, rx2 - rx1 - 2, height - BAND_TOP - BAND_BOTTOM - 2);
+        ctx.globalAlpha = 1;
+      }
+
+      // 3) 标尺刻度：0.5s 细刻度 / 1s 主刻度
+      const firstTick = Math.ceil(startTime * 2) / 2;
+      for (let t = firstTick; t <= startTime + WINDOW_SPAN; t += 0.5) {
+        const x = Math.round(timeToRatio(t) * width) + 0.5;
+        const isMajor = Math.abs(t - Math.round(t)) < 0.001;
+        ctx.fillStyle = isMajor ? 'rgba(255, 255, 255, 0.24)' : 'rgba(255, 255, 255, 0.11)';
+        const tickLen = isMajor ? 8 : 4;
+        ctx.fillRect(x, height - 15 - tickLen, 1, tickLen);
+      }
+
+      // 4) 波形柱体：镜像柱 + 已播/未播双色 + 循环区蓝色强调
+      const numBars = Math.max(48, Math.floor(width / 3.1));
+      const barW = width / numBars;
+      const bodyW = Math.max(1.4, barW * 0.62);
+      const radius = Math.min(bodyW / 2, 2);
+
+      // 帧间 lerp 平滑 + 柱条间线性插值，消除跳变抖动
+      if (waveformPeaksSmooth.length !== waveformPeaks.length) {
+        waveformPeaksSmooth = waveformPeaks.slice();
+      }
+      const SMOOTH = state.isPlaying ? 0.32 : 0.6;
+
+      for (let i = 0; i < numBars; i++) {
+        const t = startTime + ((i + 0.5) / numBars) * WINDOW_SPAN;
+        const norm = ((t % state.duration) + state.duration) % state.duration;
+        const fi = (norm / state.duration) * (waveformPeaks.length - 1);
+        const i0 = Math.floor(fi);
+        const i1 = Math.min(waveformPeaks.length - 1, i0 + 1);
+        const frac = fi - i0;
+        // 帧间 lerp 平滑（消除相邻帧柱条跳变）
+        const target = waveformPeaks[i0] * (1 - frac) + waveformPeaks[i1] * frac;
+        waveformPeaksSmooth[i0] += (target - waveformPeaksSmooth[i0]) * SMOOTH;
+        waveformPeaksSmooth[i1] += (target - waveformPeaksSmooth[i1]) * SMOOTH;
+        const amp = (waveformPeaksSmooth[i0] + waveformPeaksSmooth[i1]) * 0.5 || 0.12;
+        const half = Math.max(1.5, amp * maxHalf);
+        const inLoop = state.isLooping && t >= state.loopStart && t <= state.loopEnd;
+        const played = t <= state.currentTime;
+
+        if (inLoop) {
+          ctx.fillStyle = played ? 'rgba(133, 199, 255, 0.95)' : 'rgba(0, 122, 255, 0.50)';
+        } else {
+          ctx.fillStyle = played ? 'rgba(255, 255, 255, 0.70)' : 'rgba(148, 155, 168, 0.30)';
+        }
+
+        ctx.beginPath();
+        ctx.roundRect(i * barW + (barW - bodyW) / 2, centerY - half, bodyW, half * 2, radius);
+        ctx.fill();
+      }
+
+      // 5) 顶部循环拖拽条已隐藏
+
+      // 6) A/B 手柄永远画在最上层
+      if (state.isLooping) {
+        if (loopX1 > -4 && loopX1 < width + 4) drawLoopHandle(ctx, loopX1, height, true);
+        if (loopX2 > -4 && loopX2 < width + 4) drawLoopHandle(ctx, loopX2, height, false);
+      }
+
+      // 7) 标尺文字跟随视图中心
+      const c = getViewCenter();
+      setRulerLabel('label-t1', c - 1.5);
+      setRulerLabel('label-t2', c - 0.5);
+      setRulerLabel('label-t3', c + 0.5);
+      setRulerLabel('label-t4', c + 1.5);
+
+      // 8) 播放头：视图冻结时会偏离中心，按真实位置摆放
+      if (playheadEl) {
+        const r = timeToRatio(state.currentTime);
+        playheadEl.style.left = `${Math.max(0, Math.min(1, r)) * 100}%`;
+        playheadEl.style.opacity = (r < -0.015 || r > 1.015) ? '0.22' : '1';
+      }
+    }
+
+    const auroraCanvas = document.getElementById('auroraCanvas');
+    const auroraCtx = auroraCanvas.getContext('2d');
+    const AURORA_POINTS = 44;
+    const auroraSmooth = new Float32Array(AURORA_POINTS);
+    let auroraPhase = 0;
+
+    function resizeAuroraCanvas() {
+      fitCanvas(auroraCanvas, auroraCtx);
+    }
+    window.addEventListener('resize', resizeAuroraCanvas);
+
+    function drawAuroraEqualizer() {
+      const rect = auroraCanvas.parentElement.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      if (!width || !height) return;
+
+      const ctx = auroraCtx;
+      ctx.clearRect(0, 0, width, height);
+
+      auroraPhase += 0.03;
+
+      // 频谱取样：播放中取真实 FFT（对数分箱更贴近听感），空闲时用有机环境波
+      const raw = new Float32Array(AURORA_POINTS);
+      if (analyser && state.isPlaying) {
+        const bins = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(bins);
+        for (let i = 0; i < AURORA_POINTS; i++) {
+          const normX = i / (AURORA_POINTS - 1);
+          const idx = Math.min(bins.length - 1, Math.floor(Math.pow(normX, 1.35) * bins.length * 0.72));
+          raw[i] = bins[idx] / 255;
+        }
+      } else {
+        for (let i = 0; i < AURORA_POINTS; i++) {
+          const nx = i / (AURORA_POINTS - 1);
+          raw[i] = 0.20
+            + 0.13 * Math.sin(auroraPhase * 1.10 + nx * 5.4)
+            + 0.07 * Math.cos(auroraPhase * 0.70 - nx * 3.1);
+        }
+      }
+      // 时间方向平滑，避免 FFT 跳动带来的抖动
+      for (let i = 0; i < AURORA_POINTS; i++) {
+        auroraSmooth[i] = auroraSmooth[i] * 0.72 + raw[i] * 0.28;
+      }
+
+      // 全息渐变（对齐参考图：玫红→紫→靛蓝→亮青→翠绿→黄绿→金）
+      const grad = ctx.createLinearGradient(0, 0, width, 0);
+      grad.addColorStop(0.00, '#e11d48');
+      grad.addColorStop(0.12, '#9333ea');
+      grad.addColorStop(0.28, '#2563eb');
+      grad.addColorStop(0.46, '#00f0ff');
+      grad.addColorStop(0.66, '#06b6d4');
+      grad.addColorStop(0.82, '#10b981');
+      grad.addColorStop(0.94, '#84cc16');
+      grad.addColorStop(1.00, '#eab308');
+
+      // EQ 增益联动：整体推高/压低时，频谱同步“呼吸”
+      const boost = (state.eq.low + state.eq.mid + state.eq.high) / 3;
+      const energize = Math.max(0.65, 1 + boost / 60);
+
+      const layers = [
+        { yRatio: 0.56, amp: 15, speed: 1.00, alpha: 0.55, blur: 16 },
+        { yRatio: 0.62, amp: 11, speed: 0.78, alpha: 0.38, blur: 22 },
+        { yRatio: 0.68, amp: 8,  speed: 1.22, alpha: 0.26, blur: 26 }
+      ];
+
+      layers.forEach((layer, li) => {
+        const pts = [];
+        for (let i = 0; i < AURORA_POINTS; i++) {
+          const nx = i / (AURORA_POINTS - 1);
+          const energy = auroraSmooth[i] * 26 * energize;
+          const w1 = Math.sin(nx * 5.0 + auroraPhase * layer.speed + li * 1.7) * layer.amp;
+          const w2 = Math.cos(nx * 2.6 - auroraPhase * 0.55 + li) * (layer.amp * 0.55);
+          const y = height * layer.yRatio - (energy + w1 + w2);
+          pts.push({ x: nx * width, y: Math.max(3, Math.min(height - 3, y)) });
+        }
+
+        const traceCurve = () => {
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) {
+            const xc = (pts[i - 1].x + pts[i].x) / 2;
+            const yc = (pts[i - 1].y + pts[i].y) / 2;
+            ctx.quadraticCurveTo(pts[i - 1].x, pts[i - 1].y, xc, yc);
+          }
+          ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+        };
+
+        // 流体层填充
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        ctx.lineTo(pts[0].x, pts[0].y);
+        traceCurve();
+        ctx.lineTo(width, height);
+        ctx.closePath();
+        ctx.globalAlpha = layer.alpha;
+        ctx.fillStyle = grad;
+        ctx.shadowColor = 'rgba(0, 240, 255, 0.85)';
+        ctx.shadowBlur = layer.blur;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // 顶缘高光：让浪潮有一道清晰的光边
+        if (li === 0) {
+          ctx.beginPath();
+          traceCurve();
+          ctx.globalAlpha = 0.45;
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      });
+
+      ctx.globalAlpha = 1.0;
+      ctx.shadowBlur = 0;
+    }
+
+    const timeMinSecEl = document.getElementById('time-min-sec');
+    const timeMillisEl = document.getElementById('time-millis');
+    const clockDisplayEl = document.getElementById('clock-display');
+
+    function updateLiveSystemClock() {
+      const now = new Date();
+      let h = now.getHours();
+      let m = now.getMinutes();
+      if (clockDisplayEl) {
+        clockDisplayEl.textContent = `${h}:${m < 10 ? '0' + m : m}`;
+      }
+    }
+    // Update live clock every minute while keeping the initial 11:09 fallback
+    setInterval(updateLiveSystemClock, 60000);
+
+    function animationLoop() {
+      if (state.isPlaying && audioCtx) {
+        const elapsedRealTime = (audioCtx.currentTime - audioCtxStartTimestamp);
+        const advancedAudioTime = elapsedRealTime * state.speed;
+        state.currentTime = (startTimeOffset + advancedAudioTime);
+
+        // Looping wrap-around logic
+        if (state.isLooping && state.currentTime >= state.loopEnd) {
+          const loopSpan = state.loopEnd - state.loopStart;
+          state.currentTime = state.loopStart + ((state.currentTime - state.loopStart) % loopSpan);
+          startPlayback(state.currentTime);
+        } else if (state.currentTime >= state.duration) {
+          state.currentTime = 0;
+          if (!state.isLooping) {
+            stopPlayback();
+          }
+        }
+      }
+
+      // Digital High-Precision Monospace Time Display (00:03.24)
+      const currentSec = state.currentTime % 60;
+      const minutes = Math.floor(state.currentTime / 60);
+      const seconds = Math.floor(currentSec);
+      const hundredths = Math.floor((currentSec % 1) * 100);
+
+      timeMinSecEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      timeMillisEl.textContent = `${hundredths.toString().padStart(2, '0')}`;
+
+      // Render Visualizations
+      drawWaveform();
+      drawAuroraEqualizer();
+
+      requestAnimationFrame(animationLoop);
+    }
+
+    /* ---------------- 波形交互：拖动播放头 / 拖动 A-B 循环区间 ---------------- */
+    const LOOP_HIT = 14;            // A/B 手柄命中半径（px）
+    const LOOP_LANE_H = 18;         // 顶部循环拖拽条高度（px）
+    let dragMode = null;            // 'scrub' | 'loop-start' | 'loop-end' | 'loop-move'
+    let dragAnchorX = 0;
+    let dragAnchorTime = 0;
+    let dragLoopStart0 = 0;
+    let dragLoopEnd0 = 0;
+    let wasPlayingBeforeDrag = false;
+    let scrubMoved = false;
+
+    function clamp(v, min, max) {
+      return v < min ? min : (v > max ? max : v);
+    }
+    function areaWidth() {
+      return waveformArea.getBoundingClientRect().width || 1;
+    }
+    function localX(clientX) {
+      return clientX - waveformArea.getBoundingClientRect().left;
+    }
+    function localY(clientY) {
+      return clientY - waveformArea.getBoundingClientRect().top;
+    }
+    function secPerPx() {
+      return WINDOW_SPAN / areaWidth();
+    }
+    function xToTime(x) {
+      return getViewStart() + (x / areaWidth()) * WINDOW_SPAN;
+    }
+    function ratioToX(t) {
+      return timeToRatio(t) * areaWidth();
+    }
+
+    // 命中判定：A/B 手柄（任意高度）> 顶部拖拽条（整段平移）> 波形本体（拖动播放头）
+    function hitTest(x, y) {
+      if (state.isLooping) {
+        const xs = ratioToX(state.loopStart);
+        const xe = ratioToX(state.loopEnd);
+        if (Math.abs(x - xs) <= LOOP_HIT) return 'loop-start';
+        if (Math.abs(x - xe) <= LOOP_HIT) return 'loop-end';
+        if (y <= LOOP_LANE_H && x > xs && x < xe) return 'loop-move';
+      }
+      return 'scrub';
+    }
+
+    function setLoopEnabled(on) {
+      state.isLooping = on;
+      const btn = document.getElementById('btn-loop-toggle');
+      if (!btn) return;
+      btn.style.backgroundColor = on ? '#000000' : 'rgba(255,255,255,0.10)';
+      btn.classList.toggle('text-white', on);
+      btn.classList.toggle('text-gray-400', !on);
+    }
+
+    function showBubble(clientX, text, isLoop) {
+      if (!dragBubbleEl) return;
+      const x = clamp(localX(clientX), 34, areaWidth() - 34);
+      dragBubbleEl.textContent = text;
+      dragBubbleEl.classList.toggle('is-loop', !!isLoop);
+      dragBubbleEl.classList.add('show');
+      dragBubbleEl.style.left = `${x}px`;
+    }
+    function hideBubble() {
+      if (dragBubbleEl) dragBubbleEl.classList.remove('show');
+    }
+
+    function onWavePointerDown(e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      const x = localX(e.clientX);
+      dragMode = hitTest(x, localY(e.clientY));
+      dragAnchorX = x;
+      dragAnchorTime = state.currentTime;
+      dragLoopStart0 = state.loopStart;
+      dragLoopEnd0 = state.loopEnd;
+
+      playheadEl.classList.add('is-dragging');
+
+      if (dragMode === 'scrub') {
+        // 真正拖起来之后才暂停音频（轻点不会打断播放），松手后恢复原状态
+        wasPlayingBeforeDrag = state.isPlaying;
+        scrubMoved = false;
+      } else {
+        wasPlayingBeforeDrag = false;
+        // 冻结视图：A/B 手柄才会稳稳跟手
+        viewFrozen = true;
+        frozenCenter = state.currentTime;
+        setLoopEnabled(true);
+      }
+
+      waveformArea.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+      onWavePointerMove(e);
+    }
+
+    function onWavePointerMove(e) {
+      const x = localX(e.clientX);
+
+      // 未拖动时只做光标反馈
+      if (!dragMode) {
+        const m = hitTest(x, localY(e.clientY));
+        waveformArea.style.cursor = m === 'loop-move' ? 'grab' : (m === 'scrub' ? 'ew-resize' : 'col-resize');
+        return;
+      }
+
+      const spp = secPerPx();
+
+      if (dragMode === 'scrub') {
+        if (!scrubMoved) {
+          if (Math.abs(x - dragAnchorX) < 2) return;
+          scrubMoved = true;
+          if (wasPlayingBeforeDrag) stopPlayback(true);
+        }
+        const t = clamp(dragAnchorTime - (x - dragAnchorX) * spp, 0, state.duration);
+        state.currentTime = t;
+        showBubble(e.clientX, formatClock(t), false);
+      } else if (dragMode === 'loop-start') {
+        state.loopStart = clamp(xToTime(x), 0, state.loopEnd - 0.1);
+        applyAudioParameters();
+        showBubble(e.clientX, `A ${formatClock(state.loopStart)}`, true);
+      } else if (dragMode === 'loop-end') {
+        state.loopEnd = clamp(xToTime(x), state.loopStart + 0.1, state.duration);
+        applyAudioParameters();
+        showBubble(e.clientX, `B ${formatClock(state.loopEnd)}`, true);
+      } else if (dragMode === 'loop-move') {
+        const len = dragLoopEnd0 - dragLoopStart0;
+        const delta = (x - dragAnchorX) * spp;
+        const s = clamp(dragLoopStart0 + delta, 0, Math.max(0, state.duration - len));
+        state.loopStart = s;
+        state.loopEnd = s + len;
+        applyAudioParameters();
+        showBubble(e.clientX, `${formatClock(state.loopStart)} – ${formatClock(state.loopEnd)}`, true);
+      }
+    }
+
+    function onWavePointerUp() {
+      if (!dragMode) return;
+      const mode = dragMode;
+      dragMode = null;
+      viewFrozen = false;
+      hideBubble();
+      playheadEl.classList.remove('is-dragging');
+
+      if (mode === 'scrub') {
+        if (scrubMoved && wasPlayingBeforeDrag) startPlayback(state.currentTime);
+      } else {
+        applyAudioParameters();
+        showToast(`Loop A-B: ${formatClock(state.loopStart)} → ${formatClock(state.loopEnd)}`);
+      }
+    }
+
+    waveformArea.addEventListener('pointerdown', onWavePointerDown);
+    waveformArea.addEventListener('pointermove', onWavePointerMove);
+    waveformArea.addEventListener('pointerup', onWavePointerUp);
+    waveformArea.addEventListener('pointercancel', onWavePointerUp);
+    waveformArea.addEventListener('pointerleave', () => {
+      if (!dragMode) waveformArea.style.cursor = 'pointer';
+    });
+
+    // Tactile Wheel Component Handler（ Pointer Events + 鼓面刻度 + 惯性甩动 ）
+    function setupTactileWheel(containerId, options) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const valDisplay = document.getElementById(options.valueDisplayId);
+      const upperDisplay = document.getElementById(options.upperDisplayId);
+      const lowerDisplay = document.getElementById(options.lowerDisplayId);
+
+      const PX_PER_TICK = 11;   // 一个步进对应多少像素
+      const decimals = options.decimals !== undefined ? options.decimals : 0;
+
+      // 1) 生成鼓面刻度：贴在中心的那一格 = 当前值
+      const ticks = document.createElement('div');
+      ticks.className = 'wheel-ticks';
+      const tickCount = Math.round((options.max - options.min) / options.step);
+      ticks.style.height = `${tickCount * PX_PER_TICK}px`;
+      for (let i = 0; i <= tickCount; i++) {
+        const mark = document.createElement('i');
+        if (i % 5 === 0) mark.className = 'major';
+        mark.style.top = `${i * PX_PER_TICK}px`;
+        ticks.appendChild(mark);
+      }
+      container.appendChild(ticks);
+
+      function clampVal(v) {
+        const steps = Math.round((v - options.min) / options.step);
+        let snapped = options.min + steps * options.step;
+        snapped = parseFloat(snapped.toFixed(decimals + 2));
+        return Math.min(options.max, Math.max(options.min, snapped));
+      }
+
+      let pulseTimer = null;
+      function pulse() {
+        container.classList.add('pulse');
+        clearTimeout(pulseTimer);
+        pulseTimer = setTimeout(() => container.classList.remove('pulse'), 200);
+      }
+
+      function updateDisplays() {
+        const val = options.getValue();
+        valDisplay.textContent = options.format(val);
+        if (upperDisplay) upperDisplay.textContent = options.format(clampVal(val + options.step));
+        if (lowerDisplay) lowerDisplay.textContent = options.format(clampVal(val - options.step));
+
+        // 鼓面滚动：当前值对应的刻度对齐容器垂直中心
+        const idx = (val - options.min) / options.step;
+        const centerY = container.clientHeight / 2;
+        ticks.style.transform = `translateY(${(centerY - idx * PX_PER_TICK).toFixed(2)}px)`;
+      }
+
+      function commit(v, flash) {
+        const next = clampVal(v);
+        if (next === options.getValue()) return false;
+        options.setValue(next);
+        updateDisplays();
+        applyAudioParameters();
+        if (flash) pulse();
+        return true;
+      }
+
+      let dragging = false;
+      let anchorY = 0;
+      let anchorVal = 0;
+      let lastY = 0;
+      let lastT = 0;
+      let velocity = 0;          // 步 / 毫秒
+      let inertiaId = null;
+
+      function stopInertia() {
+        if (inertiaId) cancelAnimationFrame(inertiaId);
+        inertiaId = null;
+      }
+
+      function onDown(e) {
+        if (e.button !== undefined && e.button !== 0) return;
+        dragging = true;
+        stopInertia();
+        anchorY = e.clientY;
+        anchorVal = options.getValue();
+        lastY = e.clientY;
+        lastT = performance.now();
+        velocity = 0;
+        container.classList.add('is-active');
+        container.setPointerCapture?.(e.pointerId);
+        e.preventDefault();
+      }
+
+      function onMove(e) {
+        if (!dragging) return;
+        const now = performance.now();
+        const dt = Math.max(1, now - lastT);
+        const stepsMoved = (anchorY - e.clientY) / PX_PER_TICK;
+        commit(anchorVal + stepsMoved * options.step, false);
+        velocity = ((lastY - e.clientY) / PX_PER_TICK) / dt;
+        lastY = e.clientY;
+        lastT = now;
+      }
+
+      function onUp() {
+        if (!dragging) return;
+        dragging = false;
+        container.classList.remove('is-active');
+
+        // 甩动惯性：快速划过后继续滑行并自然衰减
+        if (Math.abs(velocity) > 0.012) {
+          let v = velocity * 16;
+          const glide = () => {
+            v *= 0.90;
+            if (Math.abs(v) < 0.02) {
+              inertiaId = null;
+              pulse();
+              return;
+            }
+            commit(options.getValue() + v * options.step, false);
+            inertiaId = requestAnimationFrame(glide);
+          };
+          inertiaId = requestAnimationFrame(glide);
+        } else {
+          pulse();
+        }
+      }
+
+      // 2) 鼠标滚轮：一格 = 一个步进（触控板/鼠标都能用）
+      function onWheel(e) {
+        e.preventDefault();
+        stopInertia();
+        const dir = e.deltaY < 0 ? 1 : -1;
+        commit(options.getValue() + dir * options.step, true);
+      }
+
+      // 3) 双击复位到 0（SPEED 复位到 1.00x）
+      function onDoubleClick() {
+        stopInertia();
+        const resetTo = options.reset !== undefined ? options.reset : 0;
+        options.setValue(clampVal(resetTo));
+        updateDisplays();
+        applyAudioParameters();
+        pulse();
+        showToast(`${options.label || containerId} reset`);
+      }
+
+      container.addEventListener('pointerdown', onDown);
+      container.addEventListener('pointermove', onMove);
+      container.addEventListener('pointerup', onUp);
+      container.addEventListener('pointercancel', onUp);
+      container.addEventListener('wheel', onWheel, { passive: false });
+      container.addEventListener('dblclick', onDoubleClick);
+
+      updateDisplays();
+    }
+
+    // 1. CENTS: -50 to +50
+    setupTactileWheel('wheel-cents', {
+      valueDisplayId: 'cents-value',
+      upperDisplayId: 'cents-upper',
+      lowerDisplayId: 'cents-lower',
+      min: -50,
+      max: 50,
+      step: 1,
+      decimals: 0,
+      label: 'CENTS',
+      reset: 0,
+      getValue: () => state.cents,
+      setValue: (val) => { state.cents = val; },
+      format: (v) => (v > 0 ? `+${v}` : `${v}`)
+    });
+
+    // 2. SEMITONES: -12 to +12
+    setupTactileWheel('wheel-semitones', {
+      valueDisplayId: 'semitones-value',
+      upperDisplayId: 'semi-upper',
+      lowerDisplayId: 'semi-lower',
+      min: -12,
+      max: 12,
+      step: 1,
+      decimals: 0,
+      label: 'SEMITONES',
+      reset: 0,
+      getValue: () => state.semitones,
+      setValue: (val) => { state.semitones = val; },
+      format: (v) => (v > 0 ? `+${v}` : `${v}`)
+    });
+
+    // 3. SPEED: 0.10x to 2.00x (Default 0.20x from screenshot)
+    setupTactileWheel('wheel-speed', {
+      valueDisplayId: 'speed-value',
+      upperDisplayId: 'speed-upper',
+      lowerDisplayId: 'speed-lower',
+      min: 0.10,
+      max: 2.00,
+      step: 0.05,
+      decimals: 2,
+      label: 'SPEED',
+      reset: 1.00,
+      getValue: () => state.speed,
+      setValue: (val) => { state.speed = val; },
+      format: (v) => `${v.toFixed(2)}x`
+    });
+
+    // Play/Pause button
+    document.getElementById('btn-play-pause').addEventListener('click', togglePlay);
+
+    // Loop Mode Toggle
+    const btnLoop = document.getElementById('btn-loop-toggle');
+    btnLoop.addEventListener('click', () => {
+      setLoopEnabled(!state.isLooping);
+      showToast(state.isLooping ? 'Loop Enabled' : 'Loop Disabled');
+      applyAudioParameters();
+    });
+
+    // Rewind 1s
+    document.getElementById('btn-skip-back').addEventListener('click', () => {
+      state.currentTime = Math.max(0, state.currentTime - 1.0);
+      if (state.isPlaying) startPlayback(state.currentTime);
+      showToast('Rewind -1s');
+    });
+
+    // Forward 1s
+    document.getElementById('btn-skip-forward').addEventListener('click', () => {
+      state.currentTime = Math.min(state.duration, state.currentTime + 1.0);
+      if (state.isPlaying) startPlayback(state.currentTime);
+      showToast('Forward +1s');
+    });
+
+    // Freeze / Pitch Lock
+    const btnFreeze = document.getElementById('btn-freeze');
+    btnFreeze.addEventListener('click', () => {
+      state.isFrozen = !state.isFrozen;
+      if (state.isFrozen) {
+        btnFreeze.classList.add('text-cyan-400');
+        showToast('Pitch Freeze Enabled');
+      } else {
+        btnFreeze.classList.remove('text-cyan-400');
+        showToast('Pitch Freeze Disabled');
+      }
+    });
+
+    // A-B Loop Range setter
+    document.getElementById('btn-ab-loop').addEventListener('click', () => {
+      state.loopStart = state.currentTime;
+      state.loopEnd = Math.min(state.duration, state.currentTime + 4.0);
+      setLoopEnabled(true);
+      showToast(`Loop A-B: ${formatClock(state.loopStart)} → ${formatClock(state.loopEnd)}`);
+      applyAudioParameters();
+    });
+
+    // L-R Pan balance toggler
+    const btnPan = document.getElementById('btn-pan-balance');
+    const panStates = [0, -0.75, 0.75];
+    const panLabels = ['L · R', '◄ LEFT', 'RIGHT ►'];
+    let currentPanIndex = 0;
+    btnPan.addEventListener('click', () => {
+      currentPanIndex = (currentPanIndex + 1) % panStates.length;
+      state.pan = panStates[currentPanIndex];
+      document.getElementById('pan-label-text').textContent = panLabels[currentPanIndex];
+      if (pannerNode) pannerNode.pan.value = state.pan;
+      showToast(`Stereo Balance: ${panLabels[currentPanIndex]}`);
+    });
+
+    // Equalizer Modal Wiring
+    const modalEq = document.getElementById('modal-eq');
+    const equalizerCard = document.getElementById('equalizer-card');
+    const btnCloseEq = document.getElementById('btn-close-eq');
+    const btnDoneEq = document.getElementById('btn-done-eq');
+    const btnResetEq = document.getElementById('btn-reset-eq');
+
+    const sliderEqLow = document.getElementById('slider-eq-low');
+    const sliderEqMid = document.getElementById('slider-eq-mid');
+    const sliderEqHigh = document.getElementById('slider-eq-high');
+    const eqLowReadout = document.getElementById('eq-low-readout');
+    const eqMidReadout = document.getElementById('eq-mid-readout');
+    const eqHighReadout = document.getElementById('eq-high-readout');
+
+    function toggleEqModal(show) {
+      if (show) {
+        modalEq.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-8');
+        modalEq.classList.add('opacity-100', 'translate-y-0');
+      } else {
+        modalEq.classList.remove('opacity-100', 'translate-y-0');
+        modalEq.classList.add('opacity-0', 'pointer-events-none', 'translate-y-8');
+      }
+    }
+    equalizerCard.addEventListener('click', () => toggleEqModal(true));
+    btnCloseEq.addEventListener('click', () => toggleEqModal(false));
+    btnDoneEq.addEventListener('click', () => toggleEqModal(false));
+
+    sliderEqLow.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      state.eq.low = val;
+      if (lowFilter) lowFilter.gain.value = val;
+      eqLowReadout.textContent = `${val > 0 ? '+' : ''}${val} dB`;
+    });
+    sliderEqMid.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      state.eq.mid = val;
+      if (midFilter) midFilter.gain.value = val;
+      eqMidReadout.textContent = `${val > 0 ? '+' : ''}${val} dB`;
+    });
+    sliderEqHigh.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      state.eq.high = val;
+      if (highFilter) highFilter.gain.value = val;
+      eqHighReadout.textContent = `${val > 0 ? '+' : ''}${val} dB`;
+    });
+
+    btnResetEq.addEventListener('click', () => {
+      sliderEqLow.value = 0;
+      sliderEqMid.value = 0;
+      sliderEqHigh.value = 0;
+      state.eq.low = 0; state.eq.mid = 0; state.eq.high = 0;
+      if (lowFilter) lowFilter.gain.value = 0;
+      if (midFilter) midFilter.gain.value = 0;
+      if (highFilter) highFilter.gain.value = 0;
+      eqLowReadout.textContent = '+0 dB';
+      eqMidReadout.textContent = '+0 dB';
+      eqHighReadout.textContent = '+0 dB';
+      showToast('EQ reset to Flat');
+    });
+
+    // Stem Isolation Drawer
+    const modalStems = document.getElementById('modal-stems');
+    const btnSplitStems = document.getElementById('btn-split-stems');
+    const btnCloseStems = document.getElementById('btn-close-stems');
+    const btnDoneStems = document.getElementById('btn-done-stems');
+
+    function toggleStemsModal(show) {
+      if (show) {
+        modalStems.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-8');
+        modalStems.classList.add('opacity-100', 'translate-y-0');
+      } else {
+        modalStems.classList.remove('opacity-100', 'translate-y-0');
+        modalStems.classList.add('opacity-0', 'pointer-events-none', 'translate-y-8');
+      }
+    }
+    btnSplitStems.addEventListener('click', () => toggleStemsModal(true));
+    btnCloseStems.addEventListener('click', () => toggleStemsModal(false));
+    btnDoneStems.addEventListener('click', () => {
+      toggleStemsModal(false);
+      showToast('Stems settings applied');
+    });
+
+    // Stem toggles logic
+    document.getElementById('stem-toggle-vocals').addEventListener('change', (e) => {
+      state.stems.vocals = e.target.checked;
+      if (midFilter) midFilter.gain.value = state.stems.vocals ? state.eq.mid : -40;
+    });
+    document.getElementById('stem-toggle-drums').addEventListener('change', (e) => {
+      state.stems.drums = e.target.checked;
+      if (highFilter) highFilter.gain.value = state.stems.drums ? state.eq.high : -40;
+    });
+    document.getElementById('stem-toggle-bass').addEventListener('change', (e) => {
+      state.stems.bass = e.target.checked;
+      if (lowFilter) lowFilter.gain.value = state.stems.bass ? state.eq.low : -40;
+    });
+
+    // Track Library Modal
+    const modalTracks = document.getElementById('modal-tracks');
+    const btnOpenOptions = document.getElementById('btn-open-options');
+    const titleDropdownBtn = document.getElementById('title-dropdown-btn');
+    const btnBack = document.getElementById('btn-back');
+    const btnCloseTracks = document.getElementById('btn-close-tracks');
+
+    function toggleTracksModal(show) {
+      if (show) {
+        modalTracks.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-8');
+        modalTracks.classList.add('opacity-100', 'translate-y-0');
+      } else {
+        modalTracks.classList.remove('opacity-100', 'translate-y-0');
+        modalTracks.classList.add('opacity-0', 'pointer-events-none', 'translate-y-8');
+      }
+    }
+    btnOpenOptions.addEventListener('click', () => toggleTracksModal(true));
+    titleDropdownBtn.addEventListener('click', () => toggleTracksModal(true));
+    btnBack.addEventListener('click', () => toggleTracksModal(true));
+    btnCloseTracks.addEventListener('click', () => toggleTracksModal(false));
+
+    // Preset selection
+    document.querySelectorAll('.track-choice').forEach((el) => {
+      el.addEventListener('click', async () => {
+        const trackTitle = el.getAttribute('data-track');
+        state.currentTrack = trackTitle;
+        document.getElementById('current-track-name').textContent = trackTitle;
+        stopPlayback();
+        showToast(`Loading: ${trackTitle}...`);
+        toggleTracksModal(false);
+
+        const newBuf = await generateSynthesizedTrack(trackTitle);
+        audioBuffer = newBuf;
+        state.duration = newBuf.duration;
+        waveformPeaks = computeWaveformPeaks(newBuf, 240);
+        waveformPeaksSmooth = waveformPeaks.slice();
+        state.currentTime = 0;
+        startPlayback(0);
+      });
+    });
+
+    // File input for custom user audio (.mp3, .wav)
+    document.getElementById('audio-file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      initAudioEngine();
+      stopPlayback();
+      showToast(`Loading ${file.name}...`);
+      document.getElementById('current-track-name').textContent = file.name.replace(/\.[^/.]+$/, "");
+
+      const reader = new FileReader();
+      reader.onload = (readEvent) => {
+        audioCtx.decodeAudioData(readEvent.target.result, (decoded) => {
+          audioBuffer = decoded;
+          state.duration = decoded.duration;
+          waveformPeaks = computeWaveformPeaks(decoded, 240);
+          waveformPeaksSmooth = waveformPeaks.slice();
+          state.currentTime = 0;
+          toggleTracksModal(false);
+          startPlayback(0);
+          showToast(`Playing: ${file.name}`);
+        }, (err) => {
+          showToast('Could not decode audio file.');
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    // Waveform button
+    document.getElementById('btn-waveform-mode').addEventListener('click', () => {
+      showToast('Waveform: High Precision View');
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      resizeWaveformCanvas();
+      resizeAuroraCanvas();
+      requestAnimationFrame(animationLoop);
+    });
+  </script>
+</body>
+</html>
