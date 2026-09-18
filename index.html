@@ -724,33 +724,50 @@
     </div>
 
     <!-- TRACK SELECTOR & FILE UPLOAD MODAL -->
-    <div id="modal-tracks" class="absolute inset-0 bg-black/80 backdrop-blur-xl z-50 flex flex-col justify-end transition-all duration-300 opacity-0 pointer-events-none translate-y-8">
-      <div class="bg-[#121217] rounded-t-3xl border-t border-white/10 p-6 flex flex-col max-h-[85%] overflow-y-auto">
+    <div id="modal-tracks" class="absolute inset-0 bg-black/40 backdrop-blur-2xl z-50 flex flex-col justify-end transition-all duration-300 opacity-0 pointer-events-none translate-y-8">
+      <div class="bg-[#121217]/90 backdrop-blur-md rounded-t-3xl border-t border-white/10 p-6 flex flex-col max-h-[60%] overflow-y-auto shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.8)]">
         <div class="flex items-center justify-between pb-4 border-b border-white/10">
           <h2 class="text-base font-bold text-white">Track Library & Import</h2>
           <button id="btn-close-tracks" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-gray-300 hover:text-white">✕</button>
         </div>
 
         <div class="mt-4 space-y-2.5">
-          <div class="track-choice p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/40 flex items-center justify-between cursor-pointer hover:bg-cyan-500/20" data-track="music n me">
-            <div>
-              <div class="text-sm font-bold text-white">music n me (Original Groove)</div>
-              <div class="text-xs text-cyan-300">Tempo: 120 BPM • Key: C Minor</div>
+          <div class="track-choice is-active p-3.5 rounded-xl bg-cyan-500/15 border border-cyan-400/60 flex items-center justify-between cursor-pointer ring-1 ring-cyan-400/30 shadow-[0_0_18px_-2px_rgba(34,211,238,0.35)]" data-track="music n me">
+            <div class="flex items-center space-x-3 min-w-0">
+              <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shrink-0 shadow-md">
+                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-bold text-white truncate">music n me (Original Groove)</div>
+                <div class="text-xs text-cyan-300/90 truncate">Tempo: 120 BPM • Key: C Minor</div>
+              </div>
             </div>
-            <span class="text-cyan-400 text-xs font-bold">Active</span>
+            <div class="w-6 h-6 rounded-full bg-cyan-400 flex items-center justify-center shrink-0 shadow-md">
+              <svg class="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
           </div>
 
-          <div class="track-choice p-3.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10" data-track="Synthwave Retro">
-            <div>
-              <div class="text-sm font-semibold text-gray-200">Synthwave Retro Drive</div>
-              <div class="text-xs text-gray-400">Tempo: 110 BPM • Analog Synths</div>
+          <div class="track-choice p-3.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10 transition" data-track="Synthwave Retro">
+            <div class="flex items-center space-x-3 min-w-0">
+              <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500/80 to-pink-500/80 flex items-center justify-center shrink-0 opacity-70">
+                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-semibold text-gray-200 truncate">Synthwave Retro Drive</div>
+                <div class="text-xs text-gray-400 truncate">Tempo: 110 BPM • Analog Synths</div>
+              </div>
             </div>
           </div>
 
-          <div class="track-choice p-3.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10" data-track="Lo-Fi Chill Hop">
-            <div>
-              <div class="text-sm font-semibold text-gray-200">Lo-Fi Chill Hop Rain</div>
-              <div class="text-xs text-gray-400">Tempo: 85 BPM • Warm Vinyl</div>
+          <div class="track-choice p-3.5 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/10 transition" data-track="Lo-Fi Chill Hop">
+            <div class="flex items-center space-x-3 min-w-0">
+              <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500/80 to-orange-600/80 flex items-center justify-center shrink-0 opacity-70">
+                <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-semibold text-gray-200 truncate">Lo-Fi Chill Hop Rain</div>
+                <div class="text-xs text-gray-400 truncate">Tempo: 85 BPM • Warm Vinyl</div>
+              </div>
             </div>
           </div>
         </div>
@@ -2010,6 +2027,39 @@
     document.querySelectorAll('.track-choice').forEach((el) => {
       el.addEventListener('click', async () => {
         const trackTitle = el.getAttribute('data-track');
+
+        // Update visual active state for all track rows
+        document.querySelectorAll('.track-choice').forEach((node) => {
+          node.classList.remove(
+            'is-active',
+            'bg-cyan-500/15',
+            'border-cyan-400/60',
+            'ring-1',
+            'ring-cyan-400/30',
+            'shadow-[0_0_18px_-2px_rgba(34,211,238,0.35)]'
+          );
+          node.classList.add('bg-white/5', 'border-white/5');
+          // Remove the cyan check badge if present
+          const badge = node.querySelector('.active-badge');
+          if (badge) badge.remove();
+        });
+        el.classList.remove('bg-white/5', 'border-white/5');
+        el.classList.add(
+          'is-active',
+          'bg-cyan-500/15',
+          'border-cyan-400/60',
+          'ring-1',
+          'ring-cyan-400/30',
+          'shadow-[0_0_18px_-2px_rgba(34,211,238,0.35)]'
+        );
+        // Inject check badge if missing
+        if (!el.querySelector('.active-badge')) {
+          const badge = document.createElement('div');
+          badge.className = 'active-badge w-6 h-6 rounded-full bg-cyan-400 flex items-center justify-center shrink-0 shadow-md';
+          badge.innerHTML = '<svg class="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+          el.appendChild(badge);
+        }
+
         state.currentTrack = trackTitle;
         document.getElementById('current-track-name').textContent = trackTitle;
         stopPlayback();
